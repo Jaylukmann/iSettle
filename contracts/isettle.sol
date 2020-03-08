@@ -1,216 +1,326 @@
 pragma solidity >=0.4.21 <0.7.0;
 
+//SafeMath library
+library SafeMath {
+    function add(uint a, uint b) internal pure returns (uint c) {
+        c = a + b;
+        require(c >= a);
+    }
+
+    function sub(uint a, uint b) internal pure returns (uint c) {
+        require(b <= a);
+        c = a - b;
+    }
+
+    function mul(uint a, uint b) internal pure returns (uint c) {
+        c = a * b;
+        require(a == 0 || c / a == b);
+    }
+
+    function div(uint a, uint b) internal pure returns (uint c) {
+        require(b > 0);
+        c = a / b;
+    }
+}
+
+//SafeMath16 library
+library SafeMath16 {
+    function add(uint16 a, uint16 b) internal pure returns (uint16 c) {
+        c = a + b;
+        require(c >= a);
+    }
+
+    function sub(uint16 a, uint16 b) internal pure returns (uint16 c) {
+        require(b <= a);
+        c = a - b;
+    }
+
+    function mul(uint16 a, uint16 b) internal pure returns (uint16 c) {
+        c = a * b;
+        require(a == 0 || c / a == b);
+    }
+
+    function div(uint16 a, uint16 b) internal pure returns (uint16 c) {
+        require(b > 0);
+        c = a / b;
+    }
+}
+
+//iSettle contract
 contract Isettle{
+
+    using SafeMath for uint;
+    using SafeMath16 for uint16;
+
     //state variables
     address owner;
     address[] adminsList;
-    uint[] lawyersList; 
-    uint[] expertsList;
-    uint[] claimantsList;
-    uint[] respondentsList;
+    uint16[] lawyersList;
+    string[] expertsList;
+    string[] claimantsList;
+    string[] respondantsList;
+    uint caseCount = 0;
+    uint16 adminIndex = 0;
+    uint lawyerIndex = 0;
+    uint expertIndex = 0;
+    uint claimantIndex = 0;
+    uint respondantIndex = 0;
 
+    //Admin struct
     struct Admin{
-        uint16 adminIndex;
+        uint16 id;
         bool isAdmin;
     }
-    
-    struct Lawyers{
+
+    //Lawyer struct
+    struct Lawyer{
         string fullName;
         string speciality;
         uint16 supremeCourtNo;
         uint caseCount;
-        uint lawyersIndex;
-        uint caseHash;
-        string settlement; //The lawyers(s) settlement   
+        uint lawyerIndex;
         bool isLawyer;
     }
-    
-    struct  Experts{
+
+    //Expert struct
+    struct Expert{
         string fullName;
+        string email;
+        uint8 phoneNumber;
         string speciality;
         uint caseCount;
-        uint expertsIndex;
+        uint expertIndex;
         bool isExpert;
     }
 
-    struct Case{
-        uint caseIndex;//number of cases
-        bytes32 caseHash; //use to locate a case
-        bool isSettled; //To know if a case is settled or not
-        string complaints;//complainants agitation
-        string response; //defendants response
-        string settlement;//The lawyers(s) settlement 
-        string speciality;
-        
-    }
-    
-    struct Complainants{
-        bool isSettled;
-        string complaints;
-        string speciality;
-        uint claimantsIndex; 
-    }
-    
-    struct Respondents{
-        bool isSettled; 
-        uint respondentsIndex;
-        string response; 
-    }
-    
-    struct Inmate {
+    //Complainant struct
+    struct Claimant{
         string fullName;
-        uint16 inmateNumber;
-        uint bailFee; 
+        string email;
+        uint8 phoneNumber;
+        string complaints;
+        uint claimantIndex;
+        bytes32 caseHash;
     }
-    
-    enum caseStatus {
-        pending,
-        ongoing,
-        defaulted,
-        settled
-    }
-    
-    caseStatus public casestatus;
 
-    mapping (address => Lawyers) lawyersmap;
-    mapping (address => Experts) expertsmap;
-    mapping (bytes32 => Case) casesmap;
-    mapping (uint => Complainants) complainantsmap;
-    mapping (uint => Respondents) respondentsmap;
-    mapping (address => Admin) adminsmap;
+    //Respondant struct
+    struct Respondant{
+        string fullName;
+        string email;
+        uint8 phoneNumber;
+        string response;
+        uint respondantIndex;
+        bytes32 caseHash;
+    }
     
-    event AdminAdded(address newAdmin, uint indexed adminIndex);
+    //Case struct
+    struct Case{
+        uint caseIndex;     //number of cases
+        bytes32 caseHash;   //used to locate a case
+        Status status;      //to know the case status
+        bool isSettled;     //to know if a case is settled or not
+        string complaints;  //complainants agitation
+        string response;    //defendants response
+        string settlement;  //the lawyer(s) settlement
+        string speciality;  //the case category
+    }
+    
+    //Inmate struct
+    struct Inmate{
+        string fullName;        //name of inmate
+        uint16 inmateNumber;    //inmate number
+        string offense;         //offense committed
+        uint8 timeSpent;        //number of days spent
+        uint bailFee;           //bail fee
+    }
+
+    //Case status
+    enum Status {
+        Pending,
+        Ongoing,
+        Defaulted,
+        Settled
+    }
+
+    Status public status;
+
+    //Mappings
+    mapping (address => Lawyer) lawyers;
+    mapping (address => Expert) experts;
+    mapping (bytes32 => Case) cases;
+    mapping (uint => Claimant) claimants;
+    mapping (uint => Respondant) respondants;
+    mapping (address => Admin) admins;
+
+    event AdminAdded(string msg, address newAdmin, uint indexed adminIndex);
     event AdminRemoved(address adminAddress, uint indexed adminIndex);
     event LawyerAdded(string msg, string fullName, string specialty, uint16 supremeCourtNo);
-    event LawyerRemoved(address lawyerAddress, uint indexed lawyersIndex);
+    event LawyerRemoved(address indexed lawyerAddress);
     event ExpertAdded(string msg, string fullName, string specialty);
-    event ExpertRemoved(address expertAddress, uint indexed expertsIndex);
-    event ComplaintsAdded(string msg, string complaints, string speciality);
-    event RespondentsAdded(string msg, string response);
-     
+    event ExpertRemoved(address indexed expertAddress);
+    event ClaimantAdded(string msg, string complaints);
+    event RespondantsAdded(string msg, string response);
+
+    //Modifiers
     modifier onlyOwner() {
-        require(msg.sender == owner, 'Only owner can call this function');
+        require(msg.sender == owner, 'Access denied: Not owner');
         _;
     }
-    
-    modifier onlyAdmin() {
-        require(adminsmap[msg.sender].isAdmin == true, 'Only admins can call this function');
+
+    modifier onlyAdmins() {
+        require(admins[msg.sender].isAdmin == true, 'Access denied: Not an admin');
         _;
     }
-    
+
     modifier onlyExpert(string memory _speciality) {
-        Experts memory _expertStruct;
-        require(expertsmap[msg.sender].isExpert = true && 
-        keccak256(abi.encodePacked(_expertStruct.speciality)) == 
-        keccak256(abi.encodePacked(_speciality)));
+        Expert memory _expertStruct;
+        require(
+            experts[msg.sender].isExpert = true
+        &&
+            keccak256(
+                abi.encodePacked(_expertStruct.speciality)
+            ) ==
+                keccak256(abi.encodePacked(_speciality)),
+            'Not speciality'
+        );
         _;
     }
-    
+
     modifier onlyLawyer(string memory _speciality) {
-        Lawyers memory _lawyerStruct;
-        require(lawyersmap[msg.sender].isLawyer = true && 
-        keccak256(abi.encodePacked(_lawyerStruct.speciality)) == 
-        keccak256(abi.encodePacked(_speciality)));
+        Lawyer memory _lawyerStruct;
+        require(
+            lawyers[msg.sender].isLawyer = true
+        &&
+            keccak256(
+                abi.encodePacked(_lawyerStruct.speciality)
+            ) ==
+            keccak256(abi.encodePacked(_speciality)),
+            'Not speciality'
+        );
         _;
     }
-    
+
+    //Constructor function
     constructor() public {
         owner = msg.sender;
-        casestatus = caseStatus.pending;
+        //status = Status.pending;
         addAdmin(owner);
     }
 
+    //Add admin function
     function addAdmin(address _newAdmin) public onlyOwner {
-        Admin memory _admin;
-        require(adminsmap[_newAdmin].isAdmin == false, 'Admin alreadty exists');
-        adminsmap[_newAdmin] = _admin;
-        _admin.adminIndex += 1;
+        Admin memory _adminStruct;
+        require(admins[_newAdmin].isAdmin == false, 'Admin alreadty exists');
+        admins[_newAdmin] = _adminStruct;
+        _adminStruct.isAdmin = true;
+        adminIndex = adminIndex.add(1);
         adminsList.push(_newAdmin);
-        emit AdminAdded(_newAdmin, _admin.adminIndex);
-    }
-    
-    function removeAdmin(address _adminAddress) public onlyOwner {
-        Admin memory _admin;
-        require(_admin.adminIndex > 1, "Cannot operate without admin"); 
-        require(_admin.isAdmin == true, 'Not an admin');
-        require(_adminAddress != owner, 'Cannot remove owner');
-        delete adminsmap[_adminAddress];
-        _admin.adminIndex -= 1;
-        emit AdminRemoved(_adminAddress, _admin.adminIndex);
+        emit AdminAdded('New expert added:', _newAdmin, adminIndex);
     }
 
+    //Remove admin function
+    function removeAdmin(address _adminAddress) public onlyOwner {
+        Admin memory _adminStruct;
+        require(adminIndex > 1, 'Cannot operate without an admin');
+        require(_adminStruct.isAdmin == true, 'Not an admin');
+        require(_adminAddress != owner, 'Cannot remove owner');
+        delete admins[_adminAddress];
+        adminIndex = adminIndex.sub(1);
+        emit AdminRemoved(_adminAddress, adminIndex);
+    }
+
+    //Add lawyer function
     function addLawyer(
         string memory _fullName,
         string memory _speciality,
         uint16 _supremeCourtNo
-        ) public onlyAdmin 
-    {
-        
-        Lawyers memory _lawyerStruct;
+        ) public onlyAdmins
+        {
+        Lawyer memory _lawyerStruct;
         require(_lawyerStruct.isLawyer = false, 'Lawyer already exists');
         _lawyerStruct.fullName = _fullName;
         _lawyerStruct.speciality = _speciality;
         _lawyerStruct.supremeCourtNo = _supremeCourtNo;
         _lawyerStruct.caseCount = 0;
-        _lawyerStruct.lawyersIndex += lawyersList.length;
+        _lawyerStruct.lawyerIndex = lawyerIndex.add(1);
         _lawyerStruct.isLawyer = true;
         lawyersList.push(_supremeCourtNo);
         emit LawyerAdded("New lawyer added:", _fullName, _speciality, _supremeCourtNo);
     }
-    
-    function removeLawyer(address _lawyerAddress) public onlyAdmin {
-        Lawyers memory _lawyers;
-        require(_lawyers.isLawyer == true, 'Not a Lawyer');
+
+    //Remove lawyer function
+    function removeLawyer(address _lawyerAddress) public onlyAdmins {
+        Lawyer memory _lawyerStruct;
+        require(_lawyerStruct.isLawyer == true, 'Not a Lawyer');
         require(_lawyerAddress != owner, 'Cannot remove owner');
-        delete lawyersmap[_lawyerAddress];
-        _lawyers.lawyersIndex -= 1;
-        emit LawyerRemoved(_lawyerAddress, _lawyers.lawyersIndex);
-    }  
-    
-    function addExpert(
-        string memory _fullName,
-        string memory _speciality
-        ) public onlyAdmin{
-        
-        Experts memory _expertStruct;
-        require(_expertStruct.isExpert = false,"Expert already exist");
-        _expertStruct.fullName =_fullName;
-        _expertStruct.speciality =_speciality;
-        _expertStruct.caseCount = 0;
-        _expertStruct.expertsIndex += expertsList.length;
-        _expertStruct.isExpert = true;
-		expertsList.push(_expertStruct.expertsIndex);
-        emit ExpertAdded("New expert added:", _fullName, _speciality);        
-}
-    
-    function removeExpert(address _expertAddress) public onlyAdmin {
-        Experts memory _experts;
-        require(_experts.isExpert == true, 'Not an Expert');
-        require(_expertAddress != owner, 'Cannot remove owner');
-        delete expertsmap[_expertAddress];
-        _experts.expertsIndex -= 1;
-        emit ExpertRemoved(_expertAddress, _experts.expertsIndex);
-    }  
-    
-    function addComplainant(string memory _complaints, string memory _speciality) public onlyAdmin{
-        Complainants memory _complainantsStruct;
-        require(_complainantsStruct.isSettled = false,"Complaint already settled");
-        _complainantsStruct.complaints = _complaints;
-        _complainantsStruct.speciality = _speciality;
-        _complainantsStruct.isSettled = true;
-        _complainantsStruct.claimantsIndex += claimantsList.length;
-	    claimantsList.push(_complainantsStruct.claimantsIndex);
-        emit ComplaintsAdded("New complaint added:", _complaints, _speciality);
+        delete lawyers[_lawyerAddress];
+        _lawyerStruct.lawyerIndex = lawyerIndex.sub(1);
+        emit LawyerRemoved(_lawyerAddress);
     }
 
-    function addRespondents(string memory _response) public onlyAdmin{
-        Respondents memory _respondentStruct;
-        require(_respondentStruct.isSettled = false,"Complaint already settled");
-        _respondentStruct.response = _response;
-        _respondentStruct.isSettled = true;
-        _respondentStruct.respondentsIndex += respondentsList.length;
-		respondentsList.push(_respondentStruct.respondentsIndex);
-        emit RespondentsAdded("New response added:", _response);
+    //Add expert function
+    function addExpert(
+        string memory _fullName,
+        string memory _email,
+        uint8 _phoneNumber,
+        string memory _speciality
+        ) public onlyAdmins
+        {
+        Expert memory _expertStruct;
+        require(_expertStruct.isExpert = false,'Expert already exist');
+        _expertStruct.fullName =_fullName;
+        _expertStruct.email =_email;
+        _expertStruct.phoneNumber =_phoneNumber;
+        _expertStruct.speciality =_speciality;
+        _expertStruct.caseCount = 0;
+        _expertStruct.expertIndex = expertIndex.add(1);
+        _expertStruct.isExpert = true;
+		expertsList.push(_fullName);
+        emit ExpertAdded('New expert added:', _fullName, _speciality);
+    }
+
+    //Remove expert function
+    function removeExpert(address _expertAddress) public onlyAdmins {
+        Expert memory _expertStruct;
+        require(_expertStruct.isExpert == true, 'Not an Expert');
+        require(_expertAddress != owner, 'Cannot remove owner');
+        delete experts[_expertAddress];
+        _expertStruct.expertIndex = expertIndex.sub(1);
+        emit ExpertRemoved(_expertAddress);
+    }
+
+    //Add claimant function
+    function addClaimant(
+        string memory _fullName,
+        string memory _email,
+        uint8 _phoneNumber,
+        string memory _complaints
+        ) public
+        {
+        Claimant memory _claimantStruct;
+        _claimantStruct.complaints = _complaints;
+        _claimantStruct.email = _email;
+        _claimantStruct.phoneNumber = _phoneNumber;
+        _claimantStruct.claimantIndex = claimantIndex.add(1);
+	    claimantsList.push(_fullName);
+        emit ClaimantAdded("New complaint added:", _complaints);
+    }
+
+    //Add respondant function
+    function addRespondant(
+        string memory _fullName,
+        string memory _email,
+        uint8 _phoneNumber,
+        string memory _response
+        ) public
+        {
+        Respondant memory _respondantStruct;
+        _respondantStruct.fullName = _fullName;
+        _respondantStruct.email = _email;
+        _respondantStruct.phoneNumber = _phoneNumber;
+        _respondantStruct.response = _response;
+        _respondantStruct.respondantIndex = respondantIndex.add(1);
+		respondantsList.push(_fullName);
+        emit RespondantsAdded("New response added:", _response);
         }
-   
 }
